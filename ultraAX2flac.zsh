@@ -9,6 +9,10 @@
 # 
 # Thanks to whoever wrote this post
 # http://www.momentaryfascinations.com/technology/the.spyro.soundtracks.html
+#
+# Just for the record: if you happen to have _that_ SotN XA rip
+# that has _that_ messed up Golden Dance (Dance of Gold) version
+# modify wav2 to be 1m40s long (-t 00:01:40)
 
 if [[ $# -ne 2 ]]
 then
