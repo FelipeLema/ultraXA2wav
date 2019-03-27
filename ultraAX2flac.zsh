@@ -58,8 +58,9 @@ stitch_to_flac()
     for f in ${singles[@]}; do
             print "file '$f'" >> $list_of_singles
     done
-    local wavout="${wav2// \[2\]/}"
-    local flacout="${wavout:r}.flac"
+    local out_original="$DESTDIR/${in2_f:t:r}"
+    local out_sans_brackets="${out_original// \[2\]/}"
+    local flacout="${out_sans_brackets:r}.flac"
     rm -f $flacout
     ffmpeg -f concat -safe 0 -i $list_of_singles -acodec flac $flacout
 
