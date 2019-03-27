@@ -14,64 +14,90 @@
 # that has _that_ messed up Golden Dance (Dance of Gold) version
 # modify wav2 to be 1m40s long (-t 00:01:40)
 
-if [[ $# -ne 2 ]]
-then
-    echo " ax2flac FROMDIR DESTDIR"
-    exit
-fi
+set -e
 
-FROMDIR="$1"
-shift
-DESTDIR="$1"
-function stitch_to_flac
+
+# ffmpeg has some quoting issues
+quote_file()
 {
-    in1_f="$1" 
-    if [[ "$in1_f" == $FROMDIR/*\[2\]* ]]
+    local f=$1
+    #        ↓ I don't think anyone uses non-ASCII characters in this context
+    sed "s/'/ψ/g" <<< $f
+}
+stitch_to_flac()
+{
+    local in1_f="$1" 
+    if [[ $in1_f == *\[2\]* ]]
     then
         #skip
         return
     fi
-    in2_f=$(sed 's/\[1\]/[2]/g' <<<$in1_f)
+    local in2_f=$(sed 's/\[1\]/[2]/g' <<<$in1_f)
     #convert 1 to wav
-    wav1="$DESTDIR/${in1_f:t:r}.wav"
-    echo $wav1
+    local wav1=$(quote_file "$DESTDIR/${in1_f:t:r}.wav") 
+    rm -f $wav1
     ffmpeg -i "$in1_f" -ar 37800 -acodec pcm_s16le "$wav1"
     #convert 2 to wav
-    wav2="$DESTDIR/${in2_f:t:r}.wav"
-    echo $wav2
+    local wav2=$(quote_file "$DESTDIR/${in2_f:t:r}.wav")
+    rm -f $wav2
     ffmpeg -i "$in2_f" -ar 37800 -acodec pcm_s16le "$wav2"
     #convert 2 to wav with fade out
-    wav3="$DESTDIR/${in2_f:t:r}_fadeout.wav"
-    echo $wav3
+    local wav3=$(quote_file "$DESTDIR/${in2_f:t:r}_fadeout.wav")
+    rm -f $wav3
     ffmpeg -i "$in2_f" -ar 37800 -acodec pcm_s16le \
         -t 8 -af afade=t=out:d=8 \
         "$wav3"
 
     #concat them
-    wavout="${wav2// \[2\]/}"
-    cat <(echo "file '$wav1'\nfile '$wav2'\nfile '$wav2'\nfile '$wav2'\nfile '$wav3'") > l.tmp
-    echo $wavout
-    ffmpeg -f concat -i l.tmp -acodec flac "${wavout:r}.flac"
-    
+    local list_of_singles=l.tmp.txt
+    echo -n >! $list_of_singles # ensure file exists and is empty
+    local singles=($wav1 
+                   $wav2 $wav2 $wav2  # 3 reps
+                   $wav3
+                   )
+    for f in ${singles[@]}; do
+            print "file '$f'" >> $list_of_singles
+    done
+    local wavout="${wav2// \[2\]/}"
+    local flacout="${wavout:r}.flac"
+    rm -f $flacout
+    ffmpeg -f concat -safe 0 -i $list_of_singles -acodec flac $flacout
+
     #clean up
     rm $wav1
     rm $wav2
     rm $wav3
-    rm l.tmp
+    rm $list_of_singles
     #rm $wavout
 
 }
 
-for in1_f in $FROMDIR/*XA
-do
-    if [[ "$in1_f" == $FROMDIR/*\[[[:digit:]]\]* ]]
+_main()
+{
+    if [[ $# -ne 2 ]]
     then
-        stitch_to_flac "$in1_f"
-    else
-        #convert 1 to flac
-        flac1="$DESTDIR/${in1_f:t:r}.flac"
-        echo "$flac1"
-        ffmpeg -i "$in1_f" -acodec flac "$flac1"
+        >&2 print ${(%):-%x} FROMDIR DESTDIR
+        exit -1
     fi
 
-done
+    local FROMDIR=$1
+    local DESTDIR=$2
+    mkdir -p $DESTDIR
+
+    setopt extendedglob
+    for in1_f in $FROMDIR/*XA
+    do
+        if [[ $in1_f == $FROMDIR/*\[[[:digit:]]\]* ]]
+        then
+            stitch_to_flac ${in1_f:A}
+        else
+            #convert 1 to flac
+            flac1="$DESTDIR/${in1_f:t:r}.flac"
+            ffmpeg -i "$in1_f" -acodec flac "$flac1"
+        fi
+
+    done
+}
+
+
+_main $@
