@@ -40,7 +40,12 @@ stitch_to_flac()
     #convert 2 to wav
     local wav2=$(quote_file "$DESTDIR/${in2_f:t:r}.wav")
     rm -f $wav2
-    ffmpeg -i "$in2_f" -ar 37800 -acodec pcm_s16le "$wav2"
+    local golden_dance_extra_args=($(
+    if [[ $in1_f == *Golden*Dance* ]]; then
+        print - -t 00:01:40
+    fi
+        ))
+    ffmpeg -i "$in2_f" -ar 37800 -acodec pcm_s16le $golden_dance_extra_args[@] "$wav2"
     #convert 2 to wav with fade out
     local wav3=$(quote_file "$DESTDIR/${in2_f:t:r}_fadeout.wav")
     rm -f $wav3
